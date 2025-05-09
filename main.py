@@ -3,6 +3,7 @@ from discord.ext import commands
 import asyncio
 import requests
 import re
+import os
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -113,4 +114,4 @@ async def track_order(channel, order_uuid, ping_message):
         order_tracking_tasks.pop(channel.id, None)
 
 # === Run Bot ===
-bot.run("")  # Replace with your actual bot token
+bot.run(os.getenv("DISCORD_TOKEN"))  # Replace with your actual bot token
