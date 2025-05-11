@@ -9,11 +9,11 @@ import os
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-GUILD_ID = 1365544739440427120  # Your server ID
-OWNER_ID = 1006450046876778566  # Your Discord user ID
-TOKEN = os.getenv("DISCORD_TOKEN")  # Or replace with your bot token string
+GUILD_ID = 1365544739440427120
+OWNER_ID = 1006450046876778566
+TOKEN = os.getenv("DISCORD_TOKEN")  # Or hardcode your token here
+STATUS_CHANNEL_ID = 1365579583419715604  # Channel to rename
 
-# Track active orders
 active_orders = {}
 
 def extract_uuid(input_str):
@@ -33,11 +33,9 @@ async def on_ready():
 @app_commands.describe(order_link_or_uuid="Paste the Uber Eats order link or UUID",
                        ping="Who to ping on updates (optional, default: @everyone)")
 async def order(interaction: discord.Interaction, order_link_or_uuid: str, ping: str = "@everyone"):
-    # Restrict usage to only your server or DM with you
-    if interaction.guild and interaction.guild.id != GUILD_ID:
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("⛔ This command can only be used in the authorized server.", ephemeral=True)
-            return
+    if interaction.guild and interaction.guild.id != GUILD_ID and interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("⛔ This command can only be used in the authorized server.", ephemeral=True)
+        return
 
     order_uuid = extract_uuid(order_link_or_uuid)
     if not order_uuid:
@@ -81,16 +79,34 @@ async def track_order(order_uuid, channel, ping_target):
                 last_status_text = status_text
 
         except Exception as e:
-            await asyncio.sleep(10)  # Wait before retry
+            await asyncio.sleep(10)
             try:
                 response = session.post(url, headers=headers, data=data)
                 response.raise_for_status()
-                json_data = response.json()
-                continue  # Success, skip error message
+                continue
             except Exception as e2:
                 await channel.send(f"{ping_target} ⚠️ Error tracking order `{order_uuid}`: `{e2}`")
                 break
 
         await asyncio.sleep(10)
+
+@bot.tree.command(name="status", description="Set the status of the shop to open or closed", guild=discord.Object(id=GUILD_ID))
+@app_commands.describe(state="Set to 'open' or 'closed'")
+async def status(interaction: discord.Interaction, state: str):
+    if state.lower() not in ["open", "closed"]:
+        await interaction.response.send_message("❌ Invalid state. Use 'open' or 'closed'.", ephemeral=True)
+        return
+
+    channel = bot.get_channel(STATUS_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Status channel not found.", ephemeral=True)
+        return
+
+    new_name = "open 🟢" if state.lower() == "open" else "closed 🔴"
+    try:
+        await channel.edit(name=new_name)
+        await interaction.response.send_message(f"✅ Channel name updated to `{new_name}`.")
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Failed to update channel name: `{e}`", ephemeral=True)
 
 bot.run(TOKEN)
