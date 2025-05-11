@@ -93,7 +93,15 @@ async def track_order(order_uuid, channel, ping_target):
 @bot.tree.command(name="status", description="Set the status of the shop to open or closed", guild=discord.Object(id=GUILD_ID))
 @app_commands.describe(state="Set to 'open' or 'closed'")
 async def status(interaction: discord.Interaction, state: str):
-    await interaction.response.defer(ephemeral=True)  # ⬅️ Respond quickly to avoid timeout
+    # Role restriction IDs
+    allowed_roles = {1370517846186004500, 1365562158687060089}
+
+    # Check if user has at least one allowed role
+    if not interaction.user.guild_permissions.administrator and not any(role.id in allowed_roles for role in interaction.user.roles):
+        await interaction.response.send_message("⛔ You don't have permission to use this command.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)  # Prevent timeout
 
     if state.lower() not in ["open", "closed"]:
         await interaction.followup.send("❌ Invalid state. Use 'open' or 'closed'.")
