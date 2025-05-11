@@ -93,20 +93,22 @@ async def track_order(order_uuid, channel, ping_target):
 @bot.tree.command(name="status", description="Set the status of the shop to open or closed", guild=discord.Object(id=GUILD_ID))
 @app_commands.describe(state="Set to 'open' or 'closed'")
 async def status(interaction: discord.Interaction, state: str):
+    await interaction.response.defer(ephemeral=True)  # ⬅️ Respond quickly to avoid timeout
+
     if state.lower() not in ["open", "closed"]:
-        await interaction.response.send_message("❌ Invalid state. Use 'open' or 'closed'.", ephemeral=True)
+        await interaction.followup.send("❌ Invalid state. Use 'open' or 'closed'.")
         return
 
     channel = bot.get_channel(STATUS_CHANNEL_ID)
     if not channel:
-        await interaction.response.send_message("❌ Status channel not found.", ephemeral=True)
+        await interaction.followup.send("❌ Status channel not found.")
         return
 
     new_name = "open 🟢" if state.lower() == "open" else "closed 🔴"
     try:
         await channel.edit(name=new_name)
-        await interaction.response.send_message(f"✅ Channel name updated to `{new_name}`.")
+        await interaction.followup.send(f"✅ Channel name updated to `{new_name}`.")
     except Exception as e:
-        await interaction.response.send_message(f"❌ Failed to update channel name: `{e}`", ephemeral=True)
+        await interaction.followup.send(f"❌ Failed to update channel name: `{e}`")
 
 bot.run(TOKEN)
