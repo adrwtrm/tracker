@@ -7,6 +7,8 @@ import re
 import os
 
 intents = discord.Intents.default()
+intents.message_content = True
+
 bot = commands.Bot(command_prefix="/", intents=intents)
 
 OWNER_ID = 1006450046876778566
