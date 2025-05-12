@@ -55,19 +55,19 @@ async def info(interaction: discord.Interaction, action: str):
             return
 
         emoji_map = {
-            "paypal": "<:paypal:1371538769332670534>",
-            "venmo": "<:venmo:1371538828581408778>",
-            "cashapp": "<:cashapp:1371539498881519756>",
-            "zelle": "<:zelle:1371539328706281763>",
-            "apple": "<:applepay:1371538798659375266>",
-            "apple pay": "<:applepay:1371538798659375266>",
-            "bitcoin": "<:bitcoin:1371540263981551616>",
-            "btc": "<:bitcoin:1371540263981551616>",
-            "litecoin": "<:litecoin:1371539402232434840>",
-            "ltc": "<:litecoin:1371539402232434840>",
-            "solana": "<:solana:1371539374453293198>",
-            "sol": "<:solana:1371539374453293198>",
-            "stripe": "<:stripe:1371539802528153601>",
+            "apple": "<:applepay:1371549244959490169>",
+            "apple pay": "<:applepay:1371549244959490169>",
+            "paypal": "<:paypal:1371549468108918905>",
+            "venmo": "<:venmo:1371549388605755484>",
+            "zelle": "<:zelle:1371549367957192764>",
+            "cashapp": "<:cashapp:1371549350710214687>",
+            "stripe": "<:stripe:1371549762821689414>",
+            "litecoin": "<:litecoin:1371549497389219984>",
+            "ltc": "<:litecoin:1371549497389219984>",
+            "bitcoin": "<:bitcoin:1371549336772804711>",
+            "btc": "<:bitcoin:1371549336772804711>",
+            "sol": "<:solana:1371549410005090487>",
+            "solana": "<:solana:1371549410005090487>",
         }
 
         embed = discord.Embed(
