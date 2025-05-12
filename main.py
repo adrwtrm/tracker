@@ -9,10 +9,9 @@ import os
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-GUILD_ID = 1365544739440427120
 OWNER_ID = 1006450046876778566
-TOKEN = os.getenv("DISCORD_TOKEN")  # Or hardcode your token here
-STATUS_CHANNEL_ID = 1365579583419715604  # Channel to rename
+TOKEN = os.getenv("DISCORD_TOKEN")  # Or hardcode your token
+STATUS_CHANNEL_ID = 1365579583419715604
 
 active_orders = {}
 
@@ -23,18 +22,19 @@ def extract_uuid(input_str):
 @bot.event
 async def on_ready():
     try:
-        synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-        print(f"🔄 Synced {len(synced)} command(s) to guild {GUILD_ID}.")
+        synced = await bot.tree.sync()  # Global sync
+        print(f"🔄 Synced {len(synced)} global command(s).")
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
     print(f"✅ Logged in as {bot.user}")
 
-@bot.tree.command(name="order", description="Track a customer's Uber Eats order", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="order", description="Track a customer's Uber Eats order")
 @app_commands.describe(order_link_or_uuid="Paste the Uber Eats order link or UUID",
                        ping="Who to ping on updates (optional, default: @everyone)")
 async def order(interaction: discord.Interaction, order_link_or_uuid: str, ping: str = "@everyone"):
-    if interaction.guild and interaction.guild.id != GUILD_ID and interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("⛔ This command can only be used in the authorized server.", ephemeral=True)
+    # Restrict to owner only
+    if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("⛔ Only the bot owner can use this command.", ephemeral=True)
         return
 
     order_uuid = extract_uuid(order_link_or_uuid)
@@ -90,18 +90,15 @@ async def track_order(order_uuid, channel, ping_target):
 
         await asyncio.sleep(10)
 
-@bot.tree.command(name="status", description="Set the status of the shop to open or closed", guild=discord.Object(id=GUILD_ID))
+@bot.tree.command(name="status", description="Set the status of the shop to open or closed")
 @app_commands.describe(state="Set to 'open' or 'closed'")
 async def status(interaction: discord.Interaction, state: str):
-    # Role restriction IDs
-    allowed_roles = {1370517846186004500, 1365562158687060089}
-
-    # Check if user has at least one allowed role
-    if not interaction.user.guild_permissions.administrator and not any(role.id in allowed_roles for role in interaction.user.roles):
-        await interaction.response.send_message("⛔ You don't have permission to use this command.", ephemeral=True)
+    # Restrict to owner only
+    if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("⛔ Only the bot owner can use this command.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True)  # Prevent timeout
+    await interaction.response.defer(ephemeral=True)
 
     if state.lower() not in ["open", "closed"]:
         await interaction.followup.send("❌ Invalid state. Use 'open' or 'closed'.")
