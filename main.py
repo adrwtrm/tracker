@@ -11,7 +11,7 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 
 OWNER_ID = 1006450046876778566
 TOKEN = os.getenv("DISCORD_TOKEN")  # Or hardcode your token
-STATUS_CHANNEL_ID = 1365579583419715604
+STATUS_CHANNEL_ID = 1365579583419715604  # Channel ID only relevant in guild
 
 active_orders = {}
 
@@ -32,7 +32,6 @@ async def on_ready():
 @app_commands.describe(order_link_or_uuid="Paste the Uber Eats order link or UUID",
                        ping="Who to ping on updates (optional, default: @everyone)")
 async def order(interaction: discord.Interaction, order_link_or_uuid: str, ping: str = "@everyone"):
-    # Restrict to owner only
     if interaction.user.id != OWNER_ID:
         await interaction.response.send_message("⛔ Only the bot owner can use this command.", ephemeral=True)
         return
@@ -93,9 +92,13 @@ async def track_order(order_uuid, channel, ping_target):
 @bot.tree.command(name="status", description="Set the status of the shop to open or closed")
 @app_commands.describe(state="Set to 'open' or 'closed'")
 async def status(interaction: discord.Interaction, state: str):
-    # Restrict to owner only
     if interaction.user.id != OWNER_ID:
         await interaction.response.send_message("⛔ Only the bot owner can use this command.", ephemeral=True)
+        return
+
+    # Disallow status command in DMs (since it modifies a channel in a server)
+    if not interaction.guild:
+        await interaction.response.send_message("⚠️ This command must be used in a server.", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
