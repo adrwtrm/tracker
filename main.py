@@ -47,7 +47,7 @@ async def order(interaction: discord.Interaction, order_link_or_uuid: str, ping:
 
     order_uuid = extract_uuid(order_link_or_uuid)
     if not order_uuid:
-        await interaction.response.send_message("❌ Invalid order link or UUID.", ephemeral=True)
+        await interaction.response._message("❌ Invalid order link or UUID.", ephemeral=True)
         return
 
     # Determine ping target
@@ -113,10 +113,16 @@ async def info(interaction: discord.Interaction, action: str):
         if user_id not in payment_data:
             await interaction.response.send_message("❌ No payment info saved. Use `/info edit` first.", ephemeral=True)
         else:
-            await interaction.response.send_message(payment_data[user_id], ephemeral=False)
+            embed = discord.Embed(
+                title="💳 Payment Methods",
+                description=payment_data[user_id],
+                color=discord.Color.green()
+            )
+            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.avatar.url if interaction.user.avatar else None)
+            embed.set_footer(text="Use /info edit to update your payment methods.")
+    
+            await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    else:
-        await interaction.response.send_message("❌ Invalid action. Use 'edit' or 'send'.", ephemeral=True)
 
 class PaymentModal(discord.ui.Modal, title="Enter Payment Info"):
     payment = discord.ui.TextInput(label="Enter payment methods here.", style=discord.TextStyle.paragraph)
