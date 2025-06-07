@@ -3,48 +3,55 @@ from discord import app_commands
 from discord.ext import commands
 import os
 import json
+import requests
+import uuid
+import re
 
-intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="/", intents=intents)
-
+# ========== Payment Data Setup ==========
 DATA_FILE = "payment_data.json"
 
-# Load user payment data from file
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         user_payment_data = json.load(f)
 else:
     user_payment_data = {}
 
+# ========== Uber Eats Group Link Pattern ==========
+GROUP_LINK_PATTERN = r"https:\/\/(?:www\.)?(?:eats\.uber\.com|ubereats\.com)\/group-orders\/[a-zA-Z0-9-]+\/join(?:\?[^ ]*)?"
+
+def extract_group_link(text):
+    match = re.search(GROUP_LINK_PATTERN, text)
+    return match.group(0) if match else None
+
+# ========== Discord Bot Setup ==========
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print(f"✅ Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
+# ========== /info Command ==========
 @bot.tree.command(name="info", description="Edit or send your payment methods")
 @app_commands.describe(action="Type 'edit' to enter methods or 'send' to display them")
 async def info(interaction: discord.Interaction, action: str):
     if action.lower() == "edit":
-        modal = discord.ui.Modal(title="Enter Payment Methods")
+        class PaymentModal(discord.ui.Modal, title="Enter Payment Methods"):
+            payment_input = discord.ui.TextInput(
+                label="Enter payment methods here:",
+                placeholder="e.g. Apple Pay - andtram2006@gmail.com\nVenmo - drewtran1",
+                style=discord.TextStyle.paragraph,
+                max_length=1000
+            )
 
-        payment_input = discord.ui.TextInput(
-            label="Enter payment methods here:",
-            placeholder="e.g. Apple Pay - andtram2006@gmail.com\nVenmo - drewtran1",
-            style=discord.TextStyle.paragraph,
-            max_length=1000
-        )
+            async def on_submit(self, interact: discord.Interaction):
+                user_payment_data[str(interact.user.id)] = self.payment_input.value
+                with open(DATA_FILE, "w") as f:
+                    json.dump(user_payment_data, f, indent=4)
+                await interact.response.send_message("✅ Your payment methods have been saved!", ephemeral=True)
 
-        modal.add_item(payment_input)
-
-        async def on_submit(interact: discord.Interaction):
-            user_payment_data[str(interact.user.id)] = payment_input.value
-            with open(DATA_FILE, "w") as f:
-                json.dump(user_payment_data, f, indent=4)
-
-            await interact.response.send_message("✅ Your payment methods have been saved!", ephemeral=True)
-
-        modal.on_submit = on_submit
-        await interaction.response.send_modal(modal)
+        await interaction.response.send_modal(PaymentModal())
 
     elif action.lower() == "send":
         user_id = str(interaction.user.id)
@@ -103,5 +110,90 @@ async def info(interaction: discord.Interaction, action: str):
     else:
         await interaction.response.send_message("❌ Invalid action. Use 'edit' or 'send' only.", ephemeral=True)
 
-TOKEN = os.getenv("DISCORD_TOKEN")  # Or replace with hardcoded token
+# ========== /copygroup Command ==========
+@bot.tree.command(name="copygroup", description="Copy Uber Eats group order items from one group link to another.")
+@app_commands.describe(
+    to_link="Target group order link (where the items will go)",
+    from_link="Source group order link (where the items come from)"
+)
+async def copygroup(interaction: discord.Interaction, to_link: str, from_link: str):
+    await interaction.response.defer()
+
+    to_link_clean = extract_group_link(to_link)
+    from_link_clean = extract_group_link(from_link)
+
+    if not to_link_clean or not from_link_clean:
+        await interaction.followup.send("❌ One or both of the inputs didn't contain a valid Uber Eats group order link.")
+        return
+
+    session = requests.Session()
+    headers = {
+        "x-csrf-token": "x",
+        "accept": "application/json",
+        "content-type": "application/json"
+    }
+
+    try:
+        orderuuidto = to_link_clean.split("/")[4]
+        orderuuidfrom = from_link_clean.split("/")[4]
+
+        res_from = session.post("https://www.ubereats.com/_p/api/addMemberToDraftOrderV1", headers=headers, json={
+            "draftOrderUuid": orderuuidfrom,
+            "nickname": "DrewEats https://discord.gg/hzjGupBbVJ"
+        })
+        res_from.raise_for_status()
+        source_items = res_from.json()["data"]["shoppingCart"]["items"]
+
+        res_to = session.post("https://www.ubereats.com/_p/api/addMemberToDraftOrderV1", headers=headers, json={
+            "draftOrderUuid": orderuuidto,
+            "nickname": "DrewEats https://discord.gg/hzjGupBbVJ"
+        })
+        res_to.raise_for_status()
+        target_cart_uuid = res_to.json()["data"]["shoppingCart"]["cartUuid"]
+
+        copied_items = []
+        for item in source_items:
+            new_item = item.copy()
+            new_item["shoppingCartItemUuid"] = str(uuid.uuid4())
+            copied_items.append(new_item)
+
+        payload = {
+            "draftOrderUUID": orderuuidto,
+            "cartUUID": target_cart_uuid,
+            "items": copied_items
+        }
+
+        res_add = session.post("https://www.ubereats.com/_p/api/addItemsToGroupDraftOrderV2", headers=headers, json=payload)
+
+        if res_add.status_code == 200:
+            await interaction.followup.send("✅ Items successfully copied to the target group order.")
+        else:
+            await interaction.followup.send(f"❌ Failed to add items: {res_add.status_code} - {res_add.text}")
+
+    except Exception as e:
+        await interaction.followup.send(f"❌ An error occurred: `{e}`")
+
+@bot.tree.command(name="status", description="Set the status of the channel to open or closed.")
+@app_commands.describe(state="Type 'open' or 'closed'")
+@app_commands.choices(state=[
+    app_commands.Choice(name="open 🟢", value="open"),
+    app_commands.Choice(name="closed 🔴", value="closed")
+])
+async def status(interaction: discord.Interaction, state: app_commands.Choice[str]):
+    # Only allow usage in the specific server (optional)
+    if interaction.guild_id != 1365544739440427120:
+        await interaction.response.send_message("❌ This command is not allowed in this server.", ephemeral=True)
+        return
+
+    try:
+        channel = await bot.fetch_channel(1365579583419715604)
+        new_name = "open 🟢" if state.value == "open" else "closed 🔴"
+        await channel.edit(name=new_name)
+        await interaction.response.send_message(f"✅ Channel status updated to `{new_name}`.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Failed to update channel: `{e}`", ephemeral=True)
+
+
+# ========== Run Bot ==========
+TOKEN = os.getenv("DISCORD_TOKEN")  # Or hardcode your token for testing
 bot.run(TOKEN)
